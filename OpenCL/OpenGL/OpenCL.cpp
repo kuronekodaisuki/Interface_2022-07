@@ -117,29 +117,18 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 		cl_uint num_of_devices = 0;
 
 		// OpenCL対応デバイス数を取得
-		err = clGetDeviceIDs(
-			platforms[i],
-			type,
-			0,
-			0,
-			&num_of_devices
-		);
+		err = clGetDeviceIDs(platforms[i], type, 0, 0, &num_of_devices);
 
 		cl_device_id* id = new cl_device_id[num_of_devices];
 
 		// デバイス識別子を取得
-		err = clGetDeviceIDs(
-			platforms[i],
-			type,
-			num_of_devices,
-			id,
-			0
-		);
+		err = clGetDeviceIDs(platforms[i], type, num_of_devices, id, 0);
 
-		char platformName[80];
-		if (S_OK == clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, sizeof(platformName), platformName, NULL))
+		char profile[80];
+		if (S_OK == clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, sizeof(profile), profile, NULL))
 		{
-			printf("Platform:%s\n", platformName);
+			if (strstr(profile, "FULL_PROFILE") == 0)
+				continue;
 		}
 
 		char extension_string[6000];
@@ -325,6 +314,13 @@ bool OpenCL::CheckCLGLShareing()
 
 	for (unsigned int i = 0; i < numPlatforms; i++)
 	{
+		char profile[80];
+		if (S_OK == clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, sizeof(profile), profile, NULL))
+		{
+			if (strstr(profile, "FULL_PROFILE") == 0)
+				continue;
+		}
+
 		printf("******************************************************************************\n");
 		char platformVendor[100];
 		memset(platformVendor, '\0', 100);
