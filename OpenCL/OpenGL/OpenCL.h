@@ -38,18 +38,6 @@ public:
 	cl_mem CreateImage(size_t width, size_t height, cl_image_format format, IMAGE_MODE mode, void* pHostPtr = NULL);
 
 	/// <summary>
-	/// 画像バッファを生成
-	/// </summary>
-	/// <param name="width"></param>
-	/// <param name="height"></param>
-	/// <param name="channels"></param>
-	/// <param name="type"></param>
-	/// <param name="mode"></param>
-	/// <returns></returns>
-	//cl_mem CreateImage(size_t width, size_t height, cl_channel_order channels, cl_channel_type type, IMAGE_MODE mode);
-
-
-	/// <summary>
 	/// 画像データを書き込む
 	/// </summary>
 	/// <param name="image"></param>

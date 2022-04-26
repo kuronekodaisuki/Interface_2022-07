@@ -51,9 +51,6 @@ static const cl_image_format format8UC4 = { CL_RGBA, CL_UNSIGNED_INT8 };
 static const cl_image_format formatMap = { CL_R, CL_FLOAT };
 static const cl_image_format formatGL = { CL_RGBA, CL_UNORM_INT8 };
 
-#define GETFUNCTION(platform, x) \
-    (x ## _fn)clGetExtensionFunctionAddressForPlatform(platform, #x);
-
 /// <summary>
 /// コンストラクタ
 /// </summary>
@@ -164,7 +161,7 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 				};
 				//clCreateContext(cps, 1, g_clDevices, NULL, NULL, &status);
 				size_t devSizeInBytes = 0;
-				clGetGLContextInfoKHR_fn clGetGLContextInfoKHR = GETFUNCTION(platforms[i], clGetGLContextInfoKHR);
+				clGetGLContextInfoKHR_fn clGetGLContextInfoKHR = (clGetGLContextInfoKHR_fn)clGetExtensionFunctionAddressForPlatform(platforms[i], "clGetGLContextInfoKHR");
 				m_errorCode = clGetGLContextInfoKHR(opengl_props, CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, 0, NULL, &devSizeInBytes);
 				if (m_errorCode == S_OK)
 				{
@@ -230,44 +227,6 @@ cl_mem OpenCL::CreateImage(size_t width, size_t height, cl_image_format format, 
 	cl_image_desc desc = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0, NULL };
 	return clCreateImage(m_context, flags, &format, &desc, pHostPtr, &m_errorCode);
 }
-
-/*
-cl_mem OpenCL::CreateImage(size_t width, size_t height, cl_channel_order channels, cl_channel_type type, IMAGE_MODE mode)
-{
-	cl_mem_flags flags = CL_MEM_READ_WRITE;
-	switch (mode)
-	{
-	case IMAGE_MODE::READ_ONLY:
-		flags = CL_MEM_READ_ONLY;
-		break;
-	case IMAGE_MODE::READ_WRITE:
-		flags = CL_MEM_WRITE_ONLY;
-		break;
-	}
-	cl_image_format format = { CL_RGBA, type };
-	switch (channels)
-	{
-	case 1:
-		format.image_channel_order = CL_R;
-		break;
-	case 2:
-		format.image_channel_order = CL_RG;
-		break;
-	case 3:
-		format.image_channel_order = CL_RGB;
-		break;
-	case 4:
-		format.image_channel_order = CL_RGBA;
-		break;
-	}
-	format.image_channel_data_type = type;
-	cl_image_desc desc = { CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0, NULL };
-	cl_mem memory = clCreateImage(m_context, CL_MEM_READ_ONLY, &format, &desc, 0, &m_errorCode);
-	if (m_errorCode != 0)
-		printf("ERROR:%d", m_errorCode);
-	return memory;
-}
-*/
 
 cl_int OpenCL::WriteImage(unsigned char* ptr, unsigned int width, unsigned int height, unsigned int channels, cl_mem memory, cl_event* event)
 {
@@ -379,7 +338,7 @@ bool OpenCL::CheckCLGLShareing()
 
 		char extension_string[1024];
 		memset(extension_string, '\0', 1024);
-		status = clGetPlatformInfo(platforms[i], CL_DEVICE_EXTENSIONS, sizeof(extension_string), extension_string, NULL);
+		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, sizeof(extension_string), extension_string, NULL);
 		//printf("Extensions supported: %s\n", extension_string);
 
 		char* extStringStart = NULL;
@@ -451,7 +410,42 @@ bool OpenCL::CheckCLGLShareing()
 			else
 			{
 				printf("Device %s in %s platform does not support CL/GL sync, \n\tglFinish() would be required on this device\n", devTypeString, vendorName);
+				HGLRC hGLRC = wglGetCurrentContext();
+				HDC hDC = wglGetCurrentDC();
+				cl_context_properties opengl_props[] = {
+					CL_CONTEXT_PLATFORM, (cl_context_properties)platforms[i],
+					CL_GL_CONTEXT_KHR, (cl_context_properties)hGLRC,
+					CL_WGL_HDC_KHR, (cl_context_properties)hDC,
+					0
+				};
+				//clCreateContext(cps, 1, g_clDevices, NULL, NULL, &status);
+				size_t devSizeInBytes = 0;
+				clGetGLContextInfoKHR_fn clGetGLContextInfoKHR = (clGetGLContextInfoKHR_fn)clGetExtensionFunctionAddressForPlatform(platforms[i], "clGetGLContextInfoKHR");
+
+				cl_device_id deviceId;
+				cl_int m_errorCode = clGetGLContextInfoKHR(opengl_props, CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, 0, NULL, &devSizeInBytes);
+				if (m_errorCode == S_OK && 0 < devSizeInBytes)
+				{
+					const size_t devNum = devSizeInBytes / sizeof(cl_device_id);
+					std::vector<cl_device_id> devices(devNum);
+					clGetGLContextInfoKHR(opengl_props, CL_DEVICES_FOR_GL_CONTEXT_KHR, devSizeInBytes, &devices[0], NULL);
+					for (size_t k = 0; k < devNum; k++)
+					{
+						cl_device_type t;
+						clGetDeviceInfo(devices[k], CL_DEVICE_TYPE, sizeof(t), &t, NULL);
+						if (t == CL_DEVICE_TYPE_GPU)
+						{
+							//platformNum++;
+							char devicename[80];
+							clGetDeviceInfo(devices[k], CL_DEVICE_NAME, sizeof(devicename), devicename, NULL);
+							char buffer[32];
+							clGetDeviceInfo(devices[k], CL_DEVICE_OPENCL_C_VERSION, sizeof(buffer), buffer, NULL);
+							printf("  %s %s\n", devicename, buffer);
+						}
+					}
+				}
 			}
+
 		} //end for(...)
 		free(clDevices);
 
