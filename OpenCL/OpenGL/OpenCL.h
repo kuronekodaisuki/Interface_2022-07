@@ -18,6 +18,13 @@ public:
 	OpenCL(bool USE_GPU = true);
 	~OpenCL();
 
+	static bool CheckCLGLShareing();
+
+	/// <summary>
+	/// テクスチャを生成
+	/// </summary>
+	/// <param name="texture"></param>
+	/// <returns></returns>
 	cl_mem CreateGLTexture(cl_GLuint texture);
 
 	/// <summary>

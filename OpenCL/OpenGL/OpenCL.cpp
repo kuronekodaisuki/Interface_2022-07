@@ -147,7 +147,7 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 
 		char extension_string[6000];
 		memset(extension_string, ' ', 6000);
-		if (S_OK == clGetPlatformInfo(platforms[i],	CL_PLATFORM_EXTENSIONS,	sizeof(extension_string), extension_string,	NULL))
+		if (S_OK == clGetPlatformInfo(platforms[i],	CL_DEVICE_EXTENSIONS,	sizeof(extension_string), extension_string,	NULL))
 		{
 			char* extStringStart = strstr(extension_string, "cl_khr_gl_sharing");
 			if (extStringStart != 0) 
@@ -329,3 +329,134 @@ cl_int OpenCL::SVMUnmap(void* ptr)
 	return clEnqueueSVMUnmap(m_commandQueue, ptr, 1, NULL, NULL);
 }
 
+void testStatus(int status, const char* errorMsg)
+{
+	if (status != 0)
+	{
+		if (errorMsg == NULL)
+		{
+			printf("Error\n");
+		}
+		else
+		{
+			printf("Error: %s", errorMsg);
+		}
+		exit(EXIT_FAILURE);
+	}
+}
+
+bool OpenCL::CheckCLGLShareing()
+{
+	bool bclEventFromGLsyncObjectSupported = false;
+	int status = 0;
+	cl_uint numPlatforms = 0;
+
+	printf("\nChecking to see if sync objects are supported...\n");
+	status = clGetPlatformIDs(0, NULL, &numPlatforms);
+	testStatus(status, "clGetPlatformIDs error\n");
+	cl_platform_id* platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * numPlatforms);
+	if (platforms == NULL)
+	{
+		printf("Error when allocating space for the platforms\n");
+		exit(EXIT_FAILURE);
+	}
+
+	status = clGetPlatformIDs(numPlatforms, platforms, NULL);
+	testStatus(status, "clGetPlatformIDs error");
+
+	for (unsigned int i = 0; i < numPlatforms; i++)
+	{
+		printf("******************************************************************************\n");
+		char platformVendor[100];
+		memset(platformVendor, '\0', 100);
+		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, sizeof(platformVendor), platformVendor, NULL);
+		testStatus(status, "clGetPlatformInfo error");
+
+		char platformName[100];
+		memset(platformName, '\0', 100);
+		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, sizeof(platformName), platformName, NULL);
+		testStatus(status, "clGetPlatformInfo error");
+
+		char extension_string[1024];
+		memset(extension_string, '\0', 1024);
+		status = clGetPlatformInfo(platforms[i], CL_DEVICE_EXTENSIONS, sizeof(extension_string), extension_string, NULL);
+		//printf("Extensions supported: %s\n", extension_string);
+
+		char* extStringStart = NULL;
+		extStringStart = strstr(extension_string, "cl_khr_gl_event");
+		if (extStringStart == 0)
+		{
+			printf("Platform %s does not report support for cl_khr_gl_event,\n", platformName);
+		}
+		if (extStringStart != 0)
+		{
+			printf("Platform %s does support cl_khr_gl_event. \nFind out which device (if any) reports support as well\n", platformName);
+			bclEventFromGLsyncObjectSupported = TRUE;
+
+		}
+
+		//get number of devices in the platform
+		//for each platform, query extension string
+		cl_uint num_devices = 0;
+		status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
+		//testStatus(status, "Error getting number of devices\n");
+
+		cl_device_id* clDevices = NULL;
+		clDevices = (cl_device_id*)malloc(sizeof(cl_device_id) * num_devices);
+		if (clDevices == NULL)
+		{
+			printf("Error when allocating\n");
+		}
+		status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, num_devices, clDevices, 0);
+		//testStatus(status, "clGetDeviceIDs error");
+
+		for (unsigned int iDevNum = 0; iDevNum < num_devices; iDevNum++)
+		{
+			//query each for their extension string
+			//print out the device type just to make sure we got it right
+			cl_device_type device_type;
+			char vendorName[256];
+			memset(vendorName, '\0', 256);
+			char devExtString[1024];
+			memset(devExtString, '\0', 1024);
+
+			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_TYPE, sizeof(cl_device_type), (void*)&device_type, NULL);
+			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_VENDOR, (sizeof(char) * 256), &vendorName, NULL);
+			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_EXTENSIONS, (sizeof(char) * 1024), &devExtString, NULL);
+
+			char* extStringStart = NULL;
+			extStringStart = strstr(devExtString, "cl_khr_gl_event");
+
+			char devTypeString[256];
+			memset(devTypeString, '\0', 256);
+
+			if (device_type == CL_DEVICE_TYPE_CPU)
+			{
+				strcpy_s(devTypeString, "CPU");
+			}
+			else if (device_type == CL_DEVICE_TYPE_GPU)
+			{
+				strcpy_s(devTypeString, "GPU");
+			}
+			else
+			{
+				strcpy_s(devTypeString, "Not a CPU or GPU"); //for sample code, not product
+			}
+
+			if (extStringStart != 0)
+			{
+				printf("Device %s in %s platform supports synch objects between CL and GL,\n\tNo need for a glFinish() on this device\n", devTypeString, vendorName);
+				bclEventFromGLsyncObjectSupported = TRUE;
+			}
+			else
+			{
+				printf("Device %s in %s platform does not support CL/GL sync, \n\tglFinish() would be required on this device\n", devTypeString, vendorName);
+			}
+		} //end for(...)
+		free(clDevices);
+
+	}
+
+	printf("******************************************************************************\n");
+
+}
