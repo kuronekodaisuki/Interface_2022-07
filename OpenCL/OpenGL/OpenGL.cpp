@@ -2,6 +2,7 @@
 //
 
 #include <GL/freeglut.h>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgproc/types_c.h>
@@ -24,29 +25,34 @@ GLuint width = 640;			// 画像横　1280;
 GLuint height = 480;		// 画像縦　720;
 
 cv::Mat image, rgba;		// 画像
+cv::Mat mx, my;				// 変形マップ
 
 LARGE_INTEGER freq;			// パフォーマンスカウンタ周波数
 double msec;				// 処理時間
 
+#ifdef USE_OPENCL_TEXTURE
 OpenCL openCL;
+#endif
 
 cl_GLuint texture;
 cl_mem	clTextute;
 cl_mem	bgra, unorm;
+
 
 void init(int argc, char* argv[]);
 void drawScene();
 void keyboard(unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void reshape(GLint w, GLint h);
+void calcMap(uint width, uint height, float focal, cv::Mat& mx, cv::Mat& my);
 
 cl_image_format format8UC4 = { CL_RGBA, CL_UNSIGNED_INT8 };	// OpenCLは2のべき乗なのでこちら
 cl_image_format format8NC4 = { CL_RGBA, CL_UNORM_INT8 };	// テクスチャーは正規化
 
 int main(int argc, char* argv[])
 {
-	bool bCLGLShare = openCL.CheckCLGLShareing();
 #ifdef USE_OPENCL_TEXTURE
+	bool bCLGLShare = openCL.CheckCLGLShareing();
 	openCL.SelectDevice();
 	clTextute = openCL.CreateGLTexture(texture);
 
@@ -211,6 +217,20 @@ void keyboard(unsigned char key, int x, int y)
 
 	case 'f':
 		printf("%f msec\n", msec);
+		break;
+
+	case '1':
+		calcMap(width, height, 1, mx, my);
+		break;
+
+	case '2':
+		calcMap(width, height, 2, mx, my);
+		break;
+
+	case '3':
+		calcMap(width, height, 3, mx, my);
+		break;
+
 	}
 }
 
@@ -226,3 +246,30 @@ void mouse(int button, int state, int x, int y)
 
 }
 
+/// <summary>
+/// 変形マップ算出
+/// </summary>
+/// <param name="width"></param>
+/// <param name="height"></param>
+/// <param name="focal"></param>
+/// <param name="mx"></param>
+/// <param name="my"></param>
+void calcMap(uint width, uint height, float focal, cv::Mat &mx, cv::Mat &my)
+{
+	cv::Mat cameraMatrix(3, 3, CV_32FC1);
+	cv::Mat distortionCoeff;
+	cv::Size size(width, height), newSize;
+	
+	cameraMatrix.at<float>(0) = focal;
+	cameraMatrix.at<float>(1) = 0.0f;
+	cameraMatrix.at<float>(2) = (float)(size.width / 2);
+	cameraMatrix.at<float>(3) = 0.0f;
+	cameraMatrix.at<float>(4) = focal;
+	cameraMatrix.at<float>(5) = (float)(size.width / 2);
+	cameraMatrix.at<float>(6) = 0.0f;
+	cameraMatrix.at<float>(7) = 0.0f;
+	cameraMatrix.at<float>(8) = 1.0f;
+
+	cv::Mat newCameraMatrix = cv::getOptimalNewCameraMatrix(cameraMatrix, NULL, size, 1, size);
+	cv::initUndistortRectifyMap(cameraMatrix, NULL, cv::Mat(), newCameraMatrix, size, CV_32FC1, mx, my);
+}
