@@ -260,7 +260,7 @@ cl_kernel BuildKernel(cl_context context, const char* kernelSource, const char* 
 		(const char**)&kernelSource, NULL, &err);
 
 	// 
-	clBuildProgram(program, 0, NULL, "-cl-std=CL2.0", NULL, NULL);
+	err = clBuildProgram(program, 0, NULL, "-cl-std=CL2.0", NULL, NULL);
 
 	// カーネルを生成
 	cl_kernel kernel = clCreateKernel(program, function, &err);
