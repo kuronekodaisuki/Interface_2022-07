@@ -123,38 +123,9 @@ const char* kernelSource =
 "	write_imageui(dst, (int2)(x, y), q[12]);\n"
 "}\n"
 "\n"
-"__constant sampler_t LINEAR = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_LINEAR;\n"
-"__constant sampler_t NEAREST = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;\n"
-"\n"
-"__kernel void remapImage(\n"
-"__read_only image2d_t src,			// CL_UNSIGNED_INT8 x 4\n"
-"__read_only image2d_t mapX,		// CL_FLOAT\n"
-"__read_only image2d_t mapY,		// CL_FLOAT\n"
-"__write_only image2d_t	dst)		// CL_UNSIGNED_INT8 x 4\n"
-"{\n"
-"	int x = get_global_id(0);\n"
-"	int y = get_global_id(1);\n"
-"	float X = read_imagef(mapX, (int2)(x, y)).x;\n"
-"	float Y = read_imagef(mapY, (int2)(x, y)).x;\n"
-"	uint4 pixel = read_imageui(src, LINEAR, (float2)(X, Y));\n"
-"	write_imageui(dst, (int2)(x, y), pixel);\n"
-"}\n"
-"\n"
-"__kernel void convertTexture( \n"
-"		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4\n"
-"		__write_only image2d_t dst)	// CL_UNORM_INT8 x 4\n"
-"{\n"
-"	int x = get_global_id(0);\n"
-"	int y = get_global_id(1);\n"
-"	uint4 pixel = read_imageui(src, NEAREST, (int2)(x, y));\n"
-"	float4 f_pixel = (float4)(pixel.z / 255.0f, pixel.y / 255.0f, pixel.x / 255.0f, pixel.w / 255.0f);\n"
-"	write_imagef(dst, (int2)(x, y), f_pixel);\n"
-"}\n"
 ;
 
 static const cl_image_format format8UC4 = { CL_RGBA, CL_UNSIGNED_INT8 };
-static const cl_image_format formatMap = { CL_R, CL_FLOAT };
-static const cl_image_format formatGL = { CL_RGBA, CL_UNORM_INT8 };
 
 /// <summary>
 /// コンストラクタ
@@ -180,9 +151,10 @@ OpenCL::OpenCL(bool USE_GPU): m_image(NULL), m_texture(NULL), m_errorCode(0)
 	clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 
 	// カーネルを生成
-	m_remapImage = clCreateKernel(program, "remapImage", &m_errorCode);
-	m_convertTexture = clCreateKernel(program, "convertTexture", &m_errorCode);
-	
+	m_gaussian3x3 = clCreateKernel(program, "gaussian3x3", &m_errorCode);
+	m_median3x3 = clCreateKernel(program, "median3x3", &m_errorCode);
+	m_median5x5 = clCreateKernel(program, "median5x5", &m_errorCode);
+
 	clReleaseProgram(program);
 }
 
@@ -194,8 +166,9 @@ OpenCL::~OpenCL()
 	clReleaseDevice(m_deviceId);
 	clReleaseContext(m_context);
 	clReleaseCommandQueue(m_commandQueue);
-	clReleaseKernel(m_remapImage);
-	clReleaseKernel(m_convertTexture);
+	clReleaseKernel(m_gaussian3x3);
+	clReleaseKernel(m_median3x3);
+	clReleaseKernel(m_median5x5);
 }
 
 /// <summary>
@@ -322,45 +295,59 @@ cl_mem OpenCL::CreateImage(size_t width, size_t height, cl_image_format format, 
 	return clCreateImage(m_context, flags, &format, &desc, pHostPtr, &m_errorCode);
 }
 
-cl_int OpenCL::WriteImage(unsigned char* ptr, unsigned int width, unsigned int height, unsigned int channels, cl_mem memory, cl_event* event)
+cl_int OpenCL::WriteImage(unsigned char* ptr, unsigned int width, unsigned int height, unsigned int channels, cl_mem image, cl_event* wait, cl_event* finish)
 {
 	size_t origin[3] = { 0, 0, 0 };
 	size_t region[3] = { width, height, 1 };
-	return clEnqueueWriteImage(m_commandQueue, memory, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, 0, NULL, event);
+	return clEnqueueWriteImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, 0, wait, finish);
 }
 
-cl_mem OpenCL::CreateGLTexture(cl_GLuint texture)
+cl_int OpenCL::ReadImage(cl_mem image, unsigned int width, unsigned int height, unsigned int channels, unsigned char* ptr, cl_event* wait, cl_event* finish)
 {
-	// Attension: 
-	// ****************************************************************
-	//	OpenGL Internal format is CL_UNORM_INT8, not CL_UNSIGNED_INT8!
-	// ****************************************************************
-	return  clCreateFromGLTexture(m_context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, texture, &m_errorCode);
+	size_t origin[3] = { 0, 0, 0 };
+	size_t region[3] = { width, height, 1 };
+	return clEnqueueReadImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, 0, wait, finish);
 }
 
-void OpenCL::UpdateTexture(cl_mem texture, cl_mem src, cl_mem dest)
+cl_int OpenCL::EnqueueGaussian(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
 {
-	cl_event event;
-	size_t region[2];
-	clGetImageInfo(src, CL_IMAGE_WIDTH, sizeof(size_t), &region[0], NULL);
-	clGetImageInfo(src, CL_IMAGE_HEIGHT, sizeof(size_t), &region[1], NULL);
+	size_t size[] = { width, height };
 
-	//	glFinish(); // depend on mode
-	m_errorCode = clEnqueueAcquireGLObjects(m_commandQueue, 1, &texture, 0, NULL, NULL);
-	CHECK_ERRORS(m_errorCode);
-
-	// dataType == UNORM_INT8 for D3D11 pixel shader
-	m_errorCode = clSetKernelArg(m_convertTexture, 0, sizeof(cl_mem), &src);
-	m_errorCode = clSetKernelArg(m_convertTexture, 1, sizeof(cl_mem), &dest);
-	m_errorCode = clEnqueueNDRangeKernel(m_commandQueue, m_convertTexture, 2, NULL, region, NULL, 0, NULL, &event);
-	CHECK_ERRORS(m_errorCode);
-
-	m_errorCode = clEnqueueReleaseGLObjects(m_commandQueue, 1, &texture, 1, &event, NULL);
-	CHECK_ERRORS(m_errorCode);
-	m_errorCode = clFinish(m_commandQueue);	// NVIDIA has not cl_khr_gl_event
-	CHECK_ERRORS(m_errorCode);
-	clReleaseEvent(event);	
+	// TODO: Choice most effective filter
+	//__kernel void gaussian3x3( 
+	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
+	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
+	clSetKernelArg(m_gaussian3x3, 0, sizeof(cl_mem), &input);
+	clSetKernelArg(m_gaussian3x3, 1, sizeof(cl_mem), &output);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_gaussian3x3, 2, NULL, size, NULL, 1, wait, finish);
 }
+
+cl_int OpenCL::EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
+{
+	size_t size[] = { width, height };
+
+	// TODO: Choice most effective filter
+	//__kernel void median3x3( 
+	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
+	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
+	clSetKernelArg(m_median3x3, 0, sizeof(cl_mem), &input);
+	clSetKernelArg(m_median3x3, 1, sizeof(cl_mem), &output);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_median3x3, 2, NULL, size, NULL, 1, wait, finish);
+}
+
+cl_int OpenCL::EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
+{
+	size_t size[] = { width, height };
+
+	// TODO: Choice most effective filter
+	//__kernel void median5x5( 
+	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
+	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
+	clSetKernelArg(m_median5x5, 0, sizeof(cl_mem), &input);
+	clSetKernelArg(m_median5x5, 1, sizeof(cl_mem), &output);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_median5x5, 2, NULL, size, NULL, 1, wait, finish);
+}
+
 
 void* OpenCL::AllocSVMMemory(size_t size, cl_svm_mem_flags flags)
 {
@@ -380,178 +367,4 @@ cl_int OpenCL::SVMMap(void* ptr, size_t size, cl_map_flags flags)
 cl_int OpenCL::SVMUnmap(void* ptr)
 {
 	return clEnqueueSVMUnmap(m_commandQueue, ptr, 1, NULL, NULL);
-}
-
-void testStatus(int status, const char* errorMsg)
-{
-	if (status != 0)
-	{
-		if (errorMsg == NULL)
-		{
-			printf("Error\n");
-		}
-		else
-		{
-			printf("Error: %s", errorMsg);
-		}
-		exit(EXIT_FAILURE);
-	}
-}
-
-bool OpenCL::CheckCLGLShareing()
-{
-	bool bclEventFromGLsyncObjectSupported = false;
-	int status = 0;
-	cl_uint numPlatforms = 0;
-
-	printf("\nChecking to see if sync objects are supported...\n");
-	status = clGetPlatformIDs(0, NULL, &numPlatforms);
-	testStatus(status, "clGetPlatformIDs error\n");
-	cl_platform_id* platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * numPlatforms);
-	if (platforms == NULL)
-	{
-		printf("Error when allocating space for the platforms\n");
-		exit(EXIT_FAILURE);
-	}
-
-	status = clGetPlatformIDs(numPlatforms, platforms, NULL);
-	testStatus(status, "clGetPlatformIDs error");
-
-	for (unsigned int i = 0; i < numPlatforms; i++)
-	{
-		char profile[80];
-		if (S_OK == clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, sizeof(profile), profile, NULL))
-		{
-			if (strstr(profile, "FULL_PROFILE") == 0)
-				continue;
-		}
-
-		printf("******************************************************************************\n");
-		char platformVendor[100];
-		memset(platformVendor, '\0', 100);
-		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, sizeof(platformVendor), platformVendor, NULL);
-		testStatus(status, "clGetPlatformInfo error");
-
-		char platformName[100];
-		memset(platformName, '\0', 100);
-		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, sizeof(platformName), platformName, NULL);
-		testStatus(status, "clGetPlatformInfo error");
-
-		char extension_string[1024];
-		memset(extension_string, '\0', 1024);
-		status = clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, sizeof(extension_string), extension_string, NULL);
-		//printf("Extensions supported: %s\n", extension_string);
-
-		char* extStringStart = NULL;
-		extStringStart = strstr(extension_string, "cl_khr_gl_event");
-		if (extStringStart == 0)
-		{
-			printf("Platform %s does not report support for cl_khr_gl_event,\n", platformName);
-		}
-		if (extStringStart != 0)
-		{
-			printf("Platform %s does support cl_khr_gl_event. \nFind out which device (if any) reports support as well\n", platformName);
-			bclEventFromGLsyncObjectSupported = TRUE;
-
-		}
-
-		//get number of devices in the platform
-		//for each platform, query extension string
-		cl_uint num_devices = 0;
-		status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
-		//testStatus(status, "Error getting number of devices\n");
-
-		cl_device_id* clDevices = NULL;
-		clDevices = (cl_device_id*)malloc(sizeof(cl_device_id) * num_devices);
-		if (clDevices == NULL)
-		{
-			printf("Error when allocating\n");
-		}
-		status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, num_devices, clDevices, 0);
-		//testStatus(status, "clGetDeviceIDs error");
-
-		for (unsigned int iDevNum = 0; iDevNum < num_devices; iDevNum++)
-		{
-			//query each for their extension string
-			//print out the device type just to make sure we got it right
-			cl_device_type device_type;
-			char vendorName[256];
-			memset(vendorName, '\0', 256);
-			char devExtString[1024];
-			memset(devExtString, '\0', 1024);
-
-			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_TYPE, sizeof(cl_device_type), (void*)&device_type, NULL);
-			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_VENDOR, (sizeof(char) * 256), &vendorName, NULL);
-			clGetDeviceInfo(clDevices[iDevNum], CL_DEVICE_EXTENSIONS, (sizeof(char) * 1024), &devExtString, NULL);
-
-			char* extStringStart = NULL;
-			extStringStart = strstr(devExtString, "cl_khr_gl_event");
-
-			char devTypeString[256];
-			memset(devTypeString, '\0', 256);
-
-			if (device_type == CL_DEVICE_TYPE_CPU)
-			{
-				strcpy_s(devTypeString, "CPU");
-			}
-			else if (device_type == CL_DEVICE_TYPE_GPU)
-			{
-				strcpy_s(devTypeString, "GPU");
-			}
-			else
-			{
-				strcpy_s(devTypeString, "Not a CPU or GPU"); //for sample code, not product
-			}
-
-			if (extStringStart != 0)
-			{
-				printf("Device %s in %s platform supports synch objects between CL and GL,\n\tNo need for a glFinish() on this device\n", devTypeString, vendorName);
-				bclEventFromGLsyncObjectSupported = TRUE;
-			}
-			else
-			{
-				printf("Device %s in %s platform does not support CL/GL sync, \n\tglFinish() would be required on this device\n", devTypeString, vendorName);
-				HGLRC hGLRC = wglGetCurrentContext();
-				HDC hDC = wglGetCurrentDC();
-				cl_context_properties opengl_props[] = {
-					CL_CONTEXT_PLATFORM, (cl_context_properties)platforms[i],
-					CL_GL_CONTEXT_KHR, (cl_context_properties)hGLRC,
-					CL_WGL_HDC_KHR, (cl_context_properties)hDC,
-					0
-				};
-				//clCreateContext(cps, 1, g_clDevices, NULL, NULL, &status);
-				size_t devSizeInBytes = 0;
-				clGetGLContextInfoKHR_fn clGetGLContextInfoKHR = (clGetGLContextInfoKHR_fn)clGetExtensionFunctionAddressForPlatform(platforms[i], "clGetGLContextInfoKHR");
-
-				cl_device_id deviceId;
-				cl_int m_errorCode = clGetGLContextInfoKHR(opengl_props, CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, 0, NULL, &devSizeInBytes);
-				if (m_errorCode == S_OK && 0 < devSizeInBytes)
-				{
-					const size_t devNum = devSizeInBytes / sizeof(cl_device_id);
-					std::vector<cl_device_id> devices(devNum);
-					clGetGLContextInfoKHR(opengl_props, CL_DEVICES_FOR_GL_CONTEXT_KHR, devSizeInBytes, &devices[0], NULL);
-					for (size_t k = 0; k < devNum; k++)
-					{
-						cl_device_type t;
-						clGetDeviceInfo(devices[k], CL_DEVICE_TYPE, sizeof(t), &t, NULL);
-						if (t == CL_DEVICE_TYPE_GPU)
-						{
-							//platformNum++;
-							char devicename[80];
-							clGetDeviceInfo(devices[k], CL_DEVICE_NAME, sizeof(devicename), devicename, NULL);
-							char buffer[32];
-							clGetDeviceInfo(devices[k], CL_DEVICE_OPENCL_C_VERSION, sizeof(buffer), buffer, NULL);
-							printf("  %s %s\n", devicename, buffer);
-						}
-					}
-				}
-			}
-
-		} //end for(...)
-		free(clDevices);
-
-	}
-
-	printf("******************************************************************************\n");
-
 }

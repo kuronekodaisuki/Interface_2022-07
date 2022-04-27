@@ -18,15 +18,6 @@ public:
 	OpenCL(bool USE_GPU = true);
 	~OpenCL();
 
-	static bool CheckCLGLShareing();
-
-	/// <summary>
-	/// テクスチャを生成
-	/// </summary>
-	/// <param name="texture"></param>
-	/// <returns></returns>
-	cl_mem CreateGLTexture(cl_GLuint texture);
-
 	/// <summary>
 	/// 画像バッファを生成
 	/// </summary>
@@ -47,15 +38,16 @@ public:
 	/// <param name="memory"></param>
 	/// <param name="event"></param>
 	/// <returns></returns>
-	cl_int WriteImage(unsigned char* image, unsigned int width, unsigned int height, unsigned int channels, cl_mem memory, cl_event* event);
+	cl_int WriteImage(unsigned char* image, unsigned int width, unsigned int height, unsigned int channels, cl_mem memory, cl_event* wait, cl_event* finish);
 
-	/// <summary>
-	/// テクスチャ更新
-	/// </summary>
-	/// <param name="texture"></param>
-	/// <param name="src"></param>
-	/// <param name="dest"></param>
-	void UpdateTexture(cl_mem texture, cl_mem src, cl_mem dest);
+	cl_int ReadImage(cl_mem memory, unsigned int width, unsigned int height, unsigned int channels, unsigned char* image, cl_event* event, cl_event* finish);
+
+	cl_int EnqueueGaussian(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
+
+	cl_int EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
+
+	cl_int EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
+
 
 	/// <summary>
 	/// SVMメモリ確保
@@ -92,9 +84,11 @@ private:
 	cl_device_id		m_deviceId;
 	cl_context			m_context;
 	cl_command_queue	m_commandQueue;
-	cl_kernel			m_remapImage;
-	cl_kernel			m_convertTexture;
 	cl_int				m_errorCode;
+
+	cl_kernel			m_gaussian3x3;
+	cl_kernel			m_median3x3;
+	cl_kernel			m_median5x5;
 
 	cl_mem				m_image;
 	cl_mem				m_texture;
