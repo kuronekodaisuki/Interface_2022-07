@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DeviceInformation", "Device
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Kernel", "Kernel\Kernel.vcxproj", "{A304BB75-949A-49E5-AF1D-06A614CBDB2F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenGL", "OpenGL\OpenGL.vcxproj", "{231CDBB2-C3B7-4CF0-B27A-C8012D6930F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{A304BB75-949A-49E5-AF1D-06A614CBDB2F}.Debug|x64.Build.0 = Debug|x64
 		{A304BB75-949A-49E5-AF1D-06A614CBDB2F}.Release|x64.ActiveCfg = Release|x64
 		{A304BB75-949A-49E5-AF1D-06A614CBDB2F}.Release|x64.Build.0 = Release|x64
+		{231CDBB2-C3B7-4CF0-B27A-C8012D6930F1}.Debug|x64.ActiveCfg = Debug|x64
+		{231CDBB2-C3B7-4CF0-B27A-C8012D6930F1}.Debug|x64.Build.0 = Debug|x64
+		{231CDBB2-C3B7-4CF0-B27A-C8012D6930F1}.Release|x64.ActiveCfg = Release|x64
+		{231CDBB2-C3B7-4CF0-B27A-C8012D6930F1}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
