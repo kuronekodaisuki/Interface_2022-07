@@ -18,7 +18,17 @@
 
 #ifndef GL_BGR
 #define GL_BGR	GL_BGR_EXT
+#define GL_BGRA	GL_BGRA_EXT
 #endif
+
+enum FILTER
+{
+	NONE,
+	GAUSSIAN3x3,
+	MEDIAN3x3,
+	MEDIAN5x5
+};
+
 
 cv::VideoCapture camera;	// カメラ
 GLuint width = 640;			// 画像横　1280;
@@ -37,6 +47,7 @@ OpenCL openCL;
 cl_GLuint texture;
 cl_mem	clTextute;
 cl_mem	bgra, unorm;
+FILTER filter = NONE;
 
 
 void init(int argc, char* argv[]);
@@ -61,7 +72,7 @@ int main(int argc, char* argv[])
 #endif
 
 	// カメラ開始
-	camera.open(0);
+	camera.open(0, cv::CAP_MSMF, std::vector<int>{ cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_NONE });
 	camera.set(cv::CAP_PROP_FRAME_WIDTH, width);
 	camera.set(cv::CAP_PROP_FRAME_HEIGHT, height);
 
@@ -70,7 +81,6 @@ int main(int argc, char* argv[])
 	init(argc, argv);
 
 	glutMainLoop();
-
 
 	// カメラ終了
 	camera.release();
@@ -102,13 +112,13 @@ GLvoid idle()
 	glTexImage2D(
 		GL_TEXTURE_2D,
 		0,
-		GL_RGB,
+		GL_RGBA,
 		width,
 		height,
 		0,
-		GL_BGR,
+		GL_BGRA,
 		GL_UNSIGNED_BYTE,
-		image.data);
+		rgba.data);
 #endif
 
 	// Update display
@@ -215,22 +225,27 @@ void keyboard(unsigned char key, int x, int y)
 		exit(0);
 		break;
 
-	case 'f':
-		printf("%f msec\n", msec);
+	case 'n':
+	case 'N':
+		filter = NONE;
 		break;
 
-	case '1':
-		calcMap(width, height, 1, mx, my);
-		break;
-
-	case '2':
-		calcMap(width, height, 2, mx, my);
+	case 'g':
+	case 'G':
+		filter = GAUSSIAN3x3;
 		break;
 
 	case '3':
-		calcMap(width, height, 3, mx, my);
+		filter = MEDIAN3x3;
 		break;
 
+	case '5':
+		filter = MEDIAN5x5;
+		break;
+
+	case 'f':
+		printf("%f msec\n", msec);
+		break;
 	}
 }
 
