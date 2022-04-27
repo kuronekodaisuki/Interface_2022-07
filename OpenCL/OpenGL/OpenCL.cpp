@@ -231,52 +231,6 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 			else
 				continue;
 		}
-
-		/*
-		char extension_string[6000];
-		memset(extension_string, ' ', 6000);
-		if (S_OK == clGetPlatformInfo(platforms[i],	CL_DEVICE_EXTENSIONS,	sizeof(extension_string), extension_string,	NULL))
-		{
-			char* extStringStart = strstr(extension_string, "cl_khr_gl_sharing");
-			if (extStringStart != 0) 
-			{
-				printf("Platform supports cl_khr_gl_sharing\n");
-				// Reference https://software.intel.com/en-us/articles/sharing-surfaces-between-opencl-and-opengl-43-on-intel-processor-graphics-using-implicit
-				HGLRC hGLRC = wglGetCurrentContext(); 
-				HDC hDC = wglGetCurrentDC();
-				cl_context_properties opengl_props[] = {
-					CL_CONTEXT_PLATFORM, (cl_context_properties)platforms[i],
-					CL_GL_CONTEXT_KHR, (cl_context_properties)hGLRC,
-					CL_WGL_HDC_KHR, (cl_context_properties)hDC,
-					0
-				};
-				//clCreateContext(cps, 1, g_clDevices, NULL, NULL, &status);
-				size_t devSizeInBytes = 0;
-				clGetGLContextInfoKHR_fn clGetGLContextInfoKHR = (clGetGLContextInfoKHR_fn)clGetExtensionFunctionAddressForPlatform(platforms[i], "clGetGLContextInfoKHR");
-				m_errorCode = clGetGLContextInfoKHR(opengl_props, CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, 0, NULL, &devSizeInBytes);
-				if (m_errorCode == S_OK)
-				{
-					const size_t devNum = devSizeInBytes / sizeof(cl_device_id);
-					std::vector<cl_device_id> devices(devNum);
-					clGetGLContextInfoKHR(opengl_props, CL_DEVICES_FOR_GL_CONTEXT_KHR, devSizeInBytes, &devices[0], NULL);
-					for (size_t k = 0; k < devNum; k++)
-					{
-						cl_device_type t;
-						clGetDeviceInfo(devices[k], CL_DEVICE_TYPE, sizeof(t), &t, NULL);
-						if (t == CL_DEVICE_TYPE_GPU)
-						{
-							//platformNum++;
-							char devicename[80];
-							clGetDeviceInfo(devices[k], CL_DEVICE_NAME, sizeof(devicename), devicename, NULL);
-							char buffer[32];
-							clGetDeviceInfo(devices[k], CL_DEVICE_OPENCL_C_VERSION, sizeof(buffer), buffer, NULL);
-							printf("  %s %s\n", devicename, buffer);
-						}
-					}
-				}
-			}
-		}
-		*/
 	}
 
 	return m_deviceId = deviceId;

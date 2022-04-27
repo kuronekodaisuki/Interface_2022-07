@@ -40,14 +40,54 @@ public:
 	/// <returns></returns>
 	cl_int WriteImage(unsigned char* image, unsigned int width, unsigned int height, unsigned int channels, cl_mem memory, cl_event* wait, cl_event* finish);
 
+	/// <summary>
+	/// 画像データを取得
+	/// </summary>
+	/// <param name="memory"></param>
+	/// <param name="width"></param>
+	/// <param name="height"></param>
+	/// <param name="channels"></param>
+	/// <param name="image"></param>
+	/// <param name="event"></param>
+	/// <param name="finish"></param>
+	/// <returns></returns>
 	cl_int ReadImage(cl_mem memory, unsigned int width, unsigned int height, unsigned int channels, unsigned char* image, cl_event* event, cl_event* finish);
 
+	/// <summary>
+	/// ガウシアンフィルタを実行
+	/// </summary>
+	/// <param name="width"></param>
+	/// <param name="height"></param>
+	/// <param name="input"></param>
+	/// <param name="output"></param>
+	/// <param name="wait"></param>
+	/// <param name="finish"></param>
+	/// <returns></returns>
 	cl_int EnqueueGaussian(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
 
+	/// <summary>
+	/// メディアンフィルタを実行（3x3)
+	/// </summary>
+	/// <param name="width"></param>
+	/// <param name="height"></param>
+	/// <param name="input"></param>
+	/// <param name="output"></param>
+	/// <param name="wait"></param>
+	/// <param name="finish"></param>
+	/// <returns></returns>
 	cl_int EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
 
+	/// <summary>
+	/// メディアンフィルタを実行(5x5)
+	/// </summary>
+	/// <param name="width"></param>
+	/// <param name="height"></param>
+	/// <param name="input"></param>
+	/// <param name="output"></param>
+	/// <param name="wait"></param>
+	/// <param name="finish"></param>
+	/// <returns></returns>
 	cl_int EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish);
-
 
 	/// <summary>
 	/// SVMメモリ確保
