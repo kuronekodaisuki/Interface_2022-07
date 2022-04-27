@@ -112,11 +112,11 @@ GLvoid idle()
 	glTexImage2D(
 		GL_TEXTURE_2D,
 		0,
-		GL_RGBA,
+		GL_BGRA,
 		width,
 		height,
 		0,
-		GL_BGRA,
+		GL_RGBA,
 		GL_UNSIGNED_BYTE,
 		rgba.data);
 #endif
