@@ -18,6 +18,9 @@
 #define CHECK_ERRORS(error)
 
 const char* kernelSource =
+"__constant sampler_t LINEAR = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_LINEAR;\n"
+"__constant sampler_t NEAREST = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;\n"
+"\n"
 "__kernel void gaussian3x3( \n"
 "		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4\n"
 "		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4\n"
@@ -148,7 +151,7 @@ OpenCL::OpenCL(bool USE_GPU): m_image(NULL), m_texture(NULL), m_errorCode(0)
 		(const char**)&kernelSource, NULL, &m_errorCode);
 
 	// 
-	clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	m_errorCode = clBuildProgram(program, 1, &m_deviceId, "-cl-std=CL2.0", NULL, NULL);
 
 	// カーネルを生成
 	m_gaussian3x3 = clCreateKernel(program, "gaussian3x3", &m_errorCode);
@@ -205,10 +208,31 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 		char profile[80];
 		if (S_OK == clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, sizeof(profile), profile, NULL))
 		{
-			if (strstr(profile, "FULL_PROFILE") == 0)
+			if (strstr(profile, "FULL_PROFILE") != NULL)
+			{
+				m_platformId = platforms[i];
+				// 各デバイスについて
+				for (cl_uint j = 0; j < num_of_devices; j++)
+				{
+					cl_uint freq, units;
+					char deviceName[128];
+					char deviceExtensions[3000];
+
+					// デバイス情報を所得
+					err = clGetDeviceInfo(id[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &freq, NULL);
+					err = clGetDeviceInfo(id[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &units, NULL);
+					err = clGetDeviceInfo(id[j], CL_DEVICE_NAME, sizeof(deviceName), deviceName, NULL);
+					err = clGetDeviceInfo(id[j], CL_DEVICE_EXTENSIONS, sizeof(deviceExtensions), deviceExtensions, NULL);
+					printf("%s %d Compute units %dMHz\n", deviceName, units, freq);
+					deviceId = id[j];
+				}
+
+			}
+			else
 				continue;
 		}
 
+		/*
 		char extension_string[6000];
 		memset(extension_string, ' ', 6000);
 		if (S_OK == clGetPlatformInfo(platforms[i],	CL_DEVICE_EXTENSIONS,	sizeof(extension_string), extension_string,	NULL))
@@ -250,27 +274,9 @@ cl_device_id OpenCL::SelectDevice(cl_device_type type)
 						}
 					}
 				}
-
-				m_platformId = platforms[i];
-				// 各デバイスについて
-				for (cl_uint j = 0; j < num_of_devices; j++)
-				{
-					cl_uint freq, units;
-					char deviceName[128];
-					char deviceExtensions[3000];
-
-					// デバイス情報を所得
-					err = clGetDeviceInfo(id[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &freq, NULL);
-					err = clGetDeviceInfo(id[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &units, NULL);
-					err = clGetDeviceInfo(id[j], CL_DEVICE_NAME, sizeof(deviceName), deviceName, NULL);
-					err = clGetDeviceInfo(id[j], CL_DEVICE_EXTENSIONS, sizeof(deviceExtensions), deviceExtensions, NULL);
-					printf("%s %d Compute units %dMHz\n", deviceName, units, freq);
-					deviceId = id[j];
-				}
-
 			}
 		}
-
+		*/
 	}
 
 	return m_deviceId = deviceId;
@@ -317,8 +323,8 @@ cl_int OpenCL::EnqueueGaussian(unsigned int width, unsigned int height, cl_mem i
 	//__kernel void gaussian3x3( 
 	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
-	clSetKernelArg(m_gaussian3x3, 0, sizeof(cl_mem), &input);
-	clSetKernelArg(m_gaussian3x3, 1, sizeof(cl_mem), &output);
+	m_errorCode = clSetKernelArg(m_gaussian3x3, 0, sizeof(cl_mem), &input);
+	m_errorCode = clSetKernelArg(m_gaussian3x3, 1, sizeof(cl_mem), &output);
 	return clEnqueueNDRangeKernel(m_commandQueue, m_gaussian3x3, 2, NULL, size, NULL, 1, wait, finish);
 }
 
@@ -330,8 +336,8 @@ cl_int OpenCL::EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem 
 	//__kernel void median3x3( 
 	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
-	clSetKernelArg(m_median3x3, 0, sizeof(cl_mem), &input);
-	clSetKernelArg(m_median3x3, 1, sizeof(cl_mem), &output);
+	m_errorCode = clSetKernelArg(m_median3x3, 0, sizeof(cl_mem), &input);
+	m_errorCode = clSetKernelArg(m_median3x3, 1, sizeof(cl_mem), &output);
 	return clEnqueueNDRangeKernel(m_commandQueue, m_median3x3, 2, NULL, size, NULL, 1, wait, finish);
 }
 
@@ -343,8 +349,8 @@ cl_int OpenCL::EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem 
 	//__kernel void median5x5( 
 	//		__read_only image2d_t src,	// CL_UNSIGNED_INT8 x 4
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
-	clSetKernelArg(m_median5x5, 0, sizeof(cl_mem), &input);
-	clSetKernelArg(m_median5x5, 1, sizeof(cl_mem), &output);
+	m_errorCode = clSetKernelArg(m_median5x5, 0, sizeof(cl_mem), &input);
+	m_errorCode = clSetKernelArg(m_median5x5, 1, sizeof(cl_mem), &output);
 	return clEnqueueNDRangeKernel(m_commandQueue, m_median5x5, 2, NULL, size, NULL, 1, wait, finish);
 }
 

@@ -89,18 +89,25 @@ GLvoid idle()
 	cv::cvtColor(image, rgba, CV_RGB2BGRA);
 
 	cl_event wait, finish;
+	int err;
 	switch (filter)
 	{
 	case GAUSSIAN3x3:
-		openCL.WriteImage(rgba.data, width, height, 4, input, NULL, &wait);
-		openCL.EnqueueGaussian(width, height, input, output, &wait, &finish);
-		openCL.ReadImage(output, width, height, 4, rgba.data, &finish, NULL);
+		err = openCL.WriteImage(rgba.data, width, height, 4, input, NULL, &wait);
+		err = openCL.EnqueueGaussian(width, height, input, output, &wait, &finish);
+		err = openCL.ReadImage(output, width, height, 4, rgba.data, &finish, NULL);
 		break;
 
 	case MEDIAN3x3:
+		err = openCL.WriteImage(rgba.data, width, height, 4, input, NULL, &wait);
+		err = openCL.EnqueueMedian3x3(width, height, input, output, &wait, &finish);
+		err = openCL.ReadImage(output, width, height, 4, rgba.data, &finish, NULL);
 		break;
 
 	case MEDIAN5x5:
+		err = openCL.WriteImage(rgba.data, width, height, 4, input, NULL, &wait);
+		err = openCL.EnqueueMedian5x5(width, height, input, output, &wait, &finish);
+		err = openCL.ReadImage(output, width, height, 4, rgba.data, &finish, NULL);
 		break;
 	}
 
@@ -180,8 +187,8 @@ GLvoid init(int argc, char* argv[])
 
 	// OpenCLの初期化とバッファ確保
 	openCL.SelectDevice();
-	input = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::WRITE_ONLY);
-	output = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::READ_ONLY);
+	input = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::READ_ONLY);
+	output = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::WRITE_ONLY);
 
 	// パフォーマンスカウンタ周波数を取得
 	QueryPerformanceFrequency(&freq);
