@@ -185,8 +185,7 @@ GLvoid init(int argc, char* argv[])
 	glutReshapeFunc(reshape);
 	glutIdleFunc(idle);
 
-	// OpenCLの初期化とバッファ確保
-	openCL.SelectDevice();
+	// OpenCLのバッファ確保
 	input = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::READ_ONLY);
 	output = openCL.CreateImage(width, height, format8UC4, IMAGE_MODE::WRITE_ONLY);
 
