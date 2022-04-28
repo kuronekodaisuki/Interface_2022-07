@@ -10,17 +10,13 @@
 
 #include "OpenCL.h"
 
-#ifdef _DEBUG
-#pragma comment(lib, "freeglutd.lib")
-#else
-#pragma comment(lib, "freeglut.lib")
-#endif
 
 #ifndef GL_BGR
 #define GL_BGR	GL_BGR_EXT
 #define GL_BGRA	GL_BGRA_EXT
 #endif
 
+// フィルター
 enum FILTER
 {
 	NONE,
@@ -40,7 +36,7 @@ cv::Mat mx, my;				// 変形マップ
 LARGE_INTEGER freq;			// パフォーマンスカウンタ周波数
 double msec;				// 処理時間
 
-OpenCL openCL;
+OpenCL openCL;				// OpenCLクラス
 
 cl_mem	input, output;
 FILTER filter = NONE;
