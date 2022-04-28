@@ -259,14 +259,14 @@ cl_int OpenCL::WriteImage(unsigned char* ptr, unsigned int width, unsigned int h
 {
 	size_t origin[3] = { 0, 0, 0 };
 	size_t region[3] = { width, height, 1 };
-	return clEnqueueWriteImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, 0, wait, finish);
+	return clEnqueueWriteImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, wait == NULL? 0: 1, wait, finish);
 }
 
 cl_int OpenCL::ReadImage(cl_mem image, unsigned int width, unsigned int height, unsigned int channels, unsigned char* ptr, cl_event* wait, cl_event* finish)
 {
 	size_t origin[3] = { 0, 0, 0 };
 	size_t region[3] = { width, height, 1 };
-	return clEnqueueReadImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, 0, wait, finish);
+	return clEnqueueReadImage(m_commandQueue, image, CL_TRUE, origin, region, width * (size_t)channels, 0, ptr, wait == NULL? 0: 1, wait, finish);
 }
 
 cl_int OpenCL::EnqueueGaussian(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
