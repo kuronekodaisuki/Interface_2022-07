@@ -279,7 +279,7 @@ cl_int OpenCL::EnqueueGaussian(unsigned int width, unsigned int height, cl_mem i
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
 	m_errorCode = clSetKernelArg(m_gaussian3x3, 0, sizeof(cl_mem), &input);
 	m_errorCode = clSetKernelArg(m_gaussian3x3, 1, sizeof(cl_mem), &output);
-	return clEnqueueNDRangeKernel(m_commandQueue, m_gaussian3x3, 2, NULL, size, NULL, 1, wait, finish);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_gaussian3x3, 2, NULL, size, NULL, wait == NULL? 0: 1, wait, finish);
 }
 
 cl_int OpenCL::EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
@@ -292,7 +292,7 @@ cl_int OpenCL::EnqueueMedian3x3(unsigned int width, unsigned int height, cl_mem 
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
 	m_errorCode = clSetKernelArg(m_median3x3, 0, sizeof(cl_mem), &input);
 	m_errorCode = clSetKernelArg(m_median3x3, 1, sizeof(cl_mem), &output);
-	return clEnqueueNDRangeKernel(m_commandQueue, m_median3x3, 2, NULL, size, NULL, 1, wait, finish);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_median3x3, 2, NULL, size, NULL, wait == NULL ? 0 : 1, wait, finish);
 }
 
 cl_int OpenCL::EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem input, cl_mem output, cl_event* wait, cl_event* finish)
@@ -305,7 +305,7 @@ cl_int OpenCL::EnqueueMedian5x5(unsigned int width, unsigned int height, cl_mem 
 	//		__write_only image2d_t dst)	// CL_UNSIGNED_INT8 x 4
 	m_errorCode = clSetKernelArg(m_median5x5, 0, sizeof(cl_mem), &input);
 	m_errorCode = clSetKernelArg(m_median5x5, 1, sizeof(cl_mem), &output);
-	return clEnqueueNDRangeKernel(m_commandQueue, m_median5x5, 2, NULL, size, NULL, 1, wait, finish);
+	return clEnqueueNDRangeKernel(m_commandQueue, m_median5x5, 2, NULL, size, NULL, wait == NULL ? 0 : 1, wait, finish);
 }
 
 
