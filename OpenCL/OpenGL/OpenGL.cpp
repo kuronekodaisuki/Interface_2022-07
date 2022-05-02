@@ -119,7 +119,7 @@ GLvoid idle()
 		GL_UNSIGNED_BYTE,
 		rgba.data);
 
-	// Update display
+	// 表示を行う
 	glutPostRedisplay();
 
 	QueryPerformanceCounter(&end);
