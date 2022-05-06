@@ -69,22 +69,25 @@ int main()
             // ネットワークに設定
             net.setInput(blob);
 
-            // シルエットを推定、ヒートマップ(単精度浮動小数)を取得
+            // ヒートマップ(単精度浮動小数)を推定
             Mat heatmap = ones - net.forward().reshape(0, INPUT_HEIGHT);
 
             // 元画像と同じ大きさに
             resize(heatmap, convert, frame.size(), fx, fy);
 
-            Mat Afc3, Bfc3;
+            // ヒートマップを元画像に重畳するためのシルエットに変換
+            Mat heatmap32FC3, frame32FC3;
             Mat t[] = { convert, convert, convert };
-            merge(t, 3, Afc3);
+            merge(t, 3, heatmap32FC3);
+            frame.convertTo(frame32FC3, CV_32FC3, 1);
 
-            frame.convertTo(Bfc3, CV_32FC3, 1);
+            // シルエットを元画像に重畳
+            Mat C = heatmap32FC3.mul(frame32FC3);
 
-            Mat C = Afc3.mul(Bfc3);
-
+            // 単精度浮動小数から整数に戻す
             C.convertTo(heatmap, CV_8UC3); 
 
+            // 推定処理時間
             vector<double> layersTimes;
             double freq = getTickFrequency() / 1000;
             double time = net.getPerfProfile(layersTimes) / freq;
