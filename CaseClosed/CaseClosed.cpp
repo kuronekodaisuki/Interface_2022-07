@@ -55,6 +55,7 @@ int main()
     if (camera.open(0))
     {
         Mat frame, blob, convert;
+        Mat ones = Mat::ones(INPUT_HEIGHT, INPUT_WIDTH, CV_32FC1);
 
         // カメラから映像を取得
         for (bool loop = true; loop && camera.read(frame);)
@@ -69,16 +70,10 @@ int main()
             net.setInput(blob);
 
             // シルエットを推定、ヒートマップ(単精度浮動小数)を取得
-            Mat heatmap = net.forward().reshape(0, INPUT_HEIGHT);
+            Mat heatmap = ones - net.forward().reshape(0, INPUT_HEIGHT);
 
             // 元画像と同じ大きさに
             resize(heatmap, convert, frame.size(), fx, fy);
-
-            // 閾値で
-            //threshold(convert, output, 0.5, 1, THRESH_TOZERO);
-
-            // 
-            //convert.convertTo(heatmap, CV_8UC1, 255);
 
             Mat Afc3, Bfc3;
             Mat t[] = { convert, convert, convert };
@@ -94,7 +89,7 @@ int main()
             double freq = getTickFrequency() / 1000;
             double time = net.getPerfProfile(layersTimes) / freq;
             string label = format("Inference time : %.2f ms", time);
-            putText(frame, label, Point(20, 40), FONT_FACE, FONT_SCALE, RED);
+            putText(heatmap, label, Point(20, 40), FONT_FACE, FONT_SCALE, RED);
 
             imshow("Frame", frame);
             imshow("Output", heatmap);
@@ -102,7 +97,7 @@ int main()
             switch (waitKey(10))
             {
             case ' ':
-                if (imwrite("mask.bmp", heatmap))
+                if (imwrite("mask.jpg", heatmap))
                     printf("Snapshot mask\n");
                 break;
             case 'q':
