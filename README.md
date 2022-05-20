@@ -1,4 +1,4 @@
-# Interface 7月号記事ソースコード
+# Interface 8月号記事ソースコード
 ## CaseClosed 
 Semantic Segmentation サンプルプログラム
 
